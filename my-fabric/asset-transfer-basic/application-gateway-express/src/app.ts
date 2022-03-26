@@ -1,5 +1,5 @@
 import * as grpc from '@grpc/grpc-js';
-import { connect, Contract, Identity, Signer, signers } from '@hyperledger/fabric-gateway';
+import { connect, Contract, Gateway, Identity, Signer, signers } from '@hyperledger/fabric-gateway';
 import * as crypto from 'crypto';
 import { promises as fs } from 'fs';
 import * as path from 'path';
@@ -30,21 +30,24 @@ const peerEndpoint = envOrDefault('PEER_ENDPOINT', 'localhost:7051');
 const peerHostAlias = envOrDefault('PEER_HOST_ALIAS', 'peer0.org1.example.com');
 
 const utf8Decoder = new TextDecoder();
-const assetId = `asset${Date.now()}`;
+// const assetId = `asset${Date.now()}`;
 
 // const express = require('express')
 const app = express()
-const port = 3000
-var contract: Contract;
+const port = 3000;
+
+var client: grpc.Client;
+var gateway: Gateway;
 
 async function main(): Promise<void> {
 
     await displayInputParameters();
 
     // The gRPC client connection should be shared by all Gateway connections to this endpoint.
-    const client = await newGrpcConnection();
 
-    const gateway = connect({
+    client = await newGrpcConnection();
+
+    gateway = connect({
         client,
         identity: await newIdentity(),
         signer: await newSigner(),
@@ -63,34 +66,34 @@ async function main(): Promise<void> {
         },
     });
 
-    try {
-        // Get a network instance representing the channel where the smart contract is deployed.
-        const network = gateway.getNetwork(channelName);
+    // try {
+    //     // Get a network instance representing the channel where the smart contract is deployed.
+    //     const network = gateway.getNetwork(channelName);
 
-        // Get the smart contract from the network.
-        contract = network.getContract(chaincodeName);
+    //     // Get the smart contract from the network.
+    //     const contract = network.getContract(chaincodeName);
 
-        // Initialize a set of asset data on the ledger using the chaincode 'InitLedger' function.
-        await initLedger(contract);
+    //     // Initialize a set of asset data on the ledger using the chaincode 'InitLedger' function.
+    //     await initLedger(contract);
 
-        // Return all the current assets on the ledger.
-        await getAllAssets(contract);
+    //     // Return all the current assets on the ledger.
+    //     // await getAllAssets(contract);
 
-        // // Create a new asset on the ledger.
-        // await createAsset(contract);
+    //     // // Create a new asset on the ledger.
+    //     // await createAsset(contract);
 
-        // // Update an existing asset asynchronously.
-        // await transferAssetAsync(contract);
+    //     // // Update an existing asset asynchronously.
+    //     // await transferAssetAsync(contract);
 
-        // // Get the asset details by assetID.
-        // await readAssetByID(contract);
+    //     // // Get the asset details by assetID.
+    //     // await readAssetByID(contract);
 
-        // // Update an asset which does not exist.
-        // await updateNonExistentAsset(contract)
-    } finally {
-        // gateway.close();
-        // client.close();
-    }
+    //     // // Update an asset which does not exist.
+    //     // await updateNonExistentAsset(contract)
+    // } finally {
+    //     gateway.close();
+    //     client.close();
+    // }
 }
 
 main().catch(error => {
@@ -134,42 +137,76 @@ async function initLedger(contract: Contract): Promise<void> {
 /**
  * Evaluate a transaction to query ledger state.
  */
-async function getAllAssets(contract: Contract): Promise<void> {
-    console.log('\n--> Evaluate Transaction: GetAllAssets, function returns all the current assets on the ledger');
+async function getAllAssets(contract: Contract): Promise<any> {
 
     const resultBytes = await contract.evaluateTransaction('GetAllAssets');
 
     const resultJson = utf8Decoder.decode(resultBytes);
     const result = JSON.parse(resultJson);
     console.log('*** Result:', result);
+
+    return result;
 }
 
 /**
  * Submit a transaction synchronously, blocking until it has been committed to the ledger.
  */
-async function createAsset(contract: Contract): Promise<void> {
+async function createAsset(contract: Contract, id: string, user: string, inTime: string, outTime: string): Promise<void> {
     console.log('\n--> Submit Transaction: CreateAsset, creates new asset with ID, Color, Size, Owner and AppraisedValue arguments');
 
     await contract.submitTransaction(
         'CreateAsset',
-        assetId,
-        'Tom',
-        '13:00',
-        '15:00',
+        id,
+        user,
+        inTime,
+        outTime,
     );
 
-    console.log('*** Transaction committed successfully');
+    console.log('*** CreateAsset successfully\n', `Asset`);
+}
+
+async function updateAsset(contract: Contract, id: string, user?: string, inTime?: string, outTime?: string): Promise<void> {
+    console.log('\n--> Submit Transaction: UpdateAsset asset70, asset70 does not exist and should return an error');
+
+    const resultBytes = await contract.evaluateTransaction('ReadAsset', id);
+    const resultJson = utf8Decoder.decode(resultBytes);
+    const result = JSON.parse(resultJson);
+
+    try {
+        await contract.submitTransaction(
+            'UpdateAsset',
+            id,
+            user ?? result.User,
+            inTime ?? result.InTime,
+            outTime ?? result.OutTime,
+        );
+        console.log('******** SUCCESSED to update asset');
+    } catch (error) {
+        console.log('*** FAILED to update asset: \n', error);
+    }
+}
+
+async function readAssetByID(contract: Contract, id: string): Promise<any> {
+    console.log('\n--> Evaluate Transaction: ReadAsset, function returns asset attributes');
+
+    const resultBytes = await contract.evaluateTransaction('ReadAsset', id);
+    const resultJson = utf8Decoder.decode(resultBytes);
+    const result = JSON.parse(resultJson);
+
+    console.log('*** Result:', result);
+
+    return result;
 }
 
 /**
  * Submit transaction asynchronously, allowing the application to process the smart contract response (e.g. update a UI)
  * while waiting for the commit notification.
  */
-async function transferAssetAsync(contract: Contract): Promise<void> {
+async function transferAssetAsync(contract: Contract, id: string, user: string): Promise<void> {
     console.log('\n--> Async Submit Transaction: TransferAsset, updates existing asset owner');
 
     const commit = await contract.submitAsync('TransferAsset', {
-        arguments: [assetId, 'Saptha'],
+        arguments: [id, user],
     });
     const oldOwner = utf8Decoder.decode(commit.getResult());
 
@@ -184,38 +221,265 @@ async function transferAssetAsync(contract: Contract): Promise<void> {
     console.log('*** Transaction committed successfully');
 }
 
-async function readAssetByID(contract: Contract): Promise<void> {
-    console.log('\n--> Evaluate Transaction: ReadAsset, function returns asset attributes');
-
-    const resultBytes = await contract.evaluateTransaction('ReadAsset', assetId);
-
-    const resultJson = utf8Decoder.decode(resultBytes);
-    const result = JSON.parse(resultJson);
-    console.log('*** Result:', result);
-}
-
 /**
  * submitTransaction() will throw an error containing details of any error responses from the smart contract.
  */
-async function updateNonExistentAsset(contract: Contract): Promise<void> {
-    console.log('\n--> Submit Transaction: UpdateAsset asset70, asset70 does not exist and should return an error');
+// async function updateNonExistentAsset(contract: Contract): Promise<void> {
+//     console.log('\n--> Submit Transaction: UpdateAsset asset70, asset70 does not exist and should return an error');
+
+//     try {
+//         await contract.submitTransaction(
+//             'UpdateAsset',
+//             'asset70',
+//             'Tomoko',
+//             '14:00',
+//             '17:00',
+//         );
+//         console.log('******** FAILED to return an error');
+//     } catch (error) {
+//         console.log('*** Successfully caught the error: \n', error);
+//     }
+// }
+
+app.get('/', async (req, res) => {
+    // res.send('Hello World!')
+    // await displayInputParameters();
+
+    // The gRPC client connection should be shared by all Gateway connections to this endpoint.
+    // client = await newGrpcConnection();
+
+    // gateway = connect({
+    //     client,
+    //     identity: await newIdentity(),
+    //     signer: await newSigner(),
+    //     // Default timeouts for different gRPC calls
+    //     evaluateOptions: () => {
+    //         return { deadline: Date.now() + 5000 }; // 5 seconds
+    //     },
+    //     endorseOptions: () => {
+    //         return { deadline: Date.now() + 15000 }; // 15 seconds
+    //     },
+    //     submitOptions: () => {
+    //         return { deadline: Date.now() + 5000 }; // 5 seconds
+    //     },
+    //     commitStatusOptions: () => {
+    //         return { deadline: Date.now() + 60000 }; // 1 minute
+    //     },
+    // });
 
     try {
-        await contract.submitTransaction(
-            'UpdateAsset',
-            'asset70',
-            'Tomoko',
-            '14:00',
-            '17:00',
-        );
-        console.log('******** FAILED to return an error');
-    } catch (error) {
-        console.log('*** Successfully caught the error: \n', error);
-    }
-}
+        // Get a network instance representing the channel where the smart contract is deployed.
+        const network = gateway.getNetwork(channelName);
 
-app.get('/', (req, res) => {
-    res.send('Hello World!')
+        // Get the smart contract from the network.
+        const contract = network.getContract(chaincodeName);
+
+        // Initialize a set of asset data on the ledger using the chaincode 'InitLedger' function.
+        await initLedger(contract);
+
+
+        res.status(200).send("InitLedger success");
+    } catch (e) {
+        res.status(400).send(e);
+    } finally {
+        // gateway.close();
+        // client.close();
+    }
+})
+
+app.post('/create', async (req, res) => {
+    // const id = req.body.id;
+    const user = req.body.user;
+    const inTime = req.body.inTime;
+    const outTime = req.body.outTime;
+
+    if (user == undefined || user == null) {
+        res.status(400).send("user is required");
+        return;
+    }
+
+    if (inTime == undefined || inTime == null) {
+        res.status(400).send("In Time is required");
+        return;
+    }
+
+    if (outTime == undefined || outTime == null) {
+        res.status(400).send("Out Time is required");
+        return;
+    }
+
+    // const client = await newGrpcConnection();
+    // const gateway = connect({
+    //     client,
+    //     identity: await newIdentity(),
+    //     signer: await newSigner(),
+    //     // Default timeouts for different gRPC calls
+    //     evaluateOptions: () => {
+    //         return { deadline: Date.now() + 5000 }; // 5 seconds
+    //     },
+    //     endorseOptions: () => {
+    //         return { deadline: Date.now() + 15000 }; // 15 seconds
+    //     },
+    //     submitOptions: () => {
+    //         return { deadline: Date.now() + 5000 }; // 5 seconds
+    //     },
+    //     commitStatusOptions: () => {
+    //         return { deadline: Date.now() + 60000 }; // 1 minute
+    //     },
+    // });
+
+    try {
+        // Get a network instance representing the channel where the smart contract is deployed.
+        const network = gateway.getNetwork(channelName);
+
+        // Get the smart contract from the network.
+        const contract = network.getContract(chaincodeName);
+        const assetId = `asset_${Date.now()}`;
+        await createAsset(contract, assetId, user, inTime, outTime);
+        res.status(200).send(`Asset: ${assetId} updated successfully.`);
+
+    } catch (e) {
+        res.status(400).send(e);
+    } finally {
+        // gateway.close();
+        // client.close();
+    }
+})
+
+app.post('/update', async (req, res) => {
+    // res.send('Update Asset')
+    const id = req.body.id;
+    const user = req.body.user;
+    const inTime = req.body.inTime;
+    const outTime = req.body.outTime;
+
+    if (id == undefined || id == null) {
+        res.status(400).send("id is required");
+    }
+
+    // const client = await newGrpcConnection();
+    // const gateway = connect({
+    //     client,
+    //     identity: await newIdentity(),
+    //     signer: await newSigner(),
+    //     // Default timeouts for different gRPC calls
+    //     evaluateOptions: () => {
+    //         return { deadline: Date.now() + 5000 }; // 5 seconds
+    //     },
+    //     endorseOptions: () => {
+    //         return { deadline: Date.now() + 15000 }; // 15 seconds
+    //     },
+    //     submitOptions: () => {
+    //         return { deadline: Date.now() + 5000 }; // 5 seconds
+    //     },
+    //     commitStatusOptions: () => {
+    //         return { deadline: Date.now() + 60000 }; // 1 minute
+    //     },
+    // });
+
+    try {
+        // Get a network instance representing the channel where the smart contract is deployed.
+        const network = gateway.getNetwork(channelName);
+
+        // Get the smart contract from the network.
+        const contract = network.getContract(chaincodeName);
+        await updateAsset(contract, id, user, inTime, outTime);
+        res.status(200).send(`Asset: ${id} updated successfully.`);
+
+    } catch (e) {
+        res.status(400).send(e);
+    } finally {
+        // gateway.close();
+        // client.close();
+    }
+})
+
+app.get('/readAll', async (req, res) => {
+    // res.send('Read All Assets');
+
+    // const client = await newGrpcConnection();
+    // const gateway = connect({
+    //     client,
+    //     identity: await newIdentity(),
+    //     signer: await newSigner(),
+    //     // Default timeouts for different gRPC calls
+    //     evaluateOptions: () => {
+    //         return { deadline: Date.now() + 5000 }; // 5 seconds
+    //     },
+    //     endorseOptions: () => {
+    //         return { deadline: Date.now() + 15000 }; // 15 seconds
+    //     },
+    //     submitOptions: () => {
+    //         return { deadline: Date.now() + 5000 }; // 5 seconds
+    //     },
+    //     commitStatusOptions: () => {
+    //         return { deadline: Date.now() + 60000 }; // 1 minute
+    //     },
+    // });
+
+    try {
+        // Get a network instance representing the channel where the smart contract is deployed.
+        const network = gateway.getNetwork(channelName);
+
+        // Get the smart contract from the network.
+        const contract = network.getContract(chaincodeName);
+
+        const results = getAllAssets(contract);
+        res.json(results);
+
+    } catch (e) {
+        res.status(400).send(e);
+    } finally {
+        // gateway.close();
+        // client.close();
+    }
+
+
+})
+
+app.get('/read', async (req, res) => {
+    // res.send(`Read Asset: ${id}`)
+    const id: string = req.query.id as string;
+
+    if (id == undefined || id == null) {
+        res.status(400).json({ code: 400, message: "id is required" });
+    }
+
+    // const client = await newGrpcConnection();
+    // const gateway = connect({
+    //     client,
+    //     identity: await newIdentity(),
+    //     signer: await newSigner(),
+    //     // Default timeouts for different gRPC calls
+    //     evaluateOptions: () => {
+    //         return { deadline: Date.now() + 5000 }; // 5 seconds
+    //     },
+    //     endorseOptions: () => {
+    //         return { deadline: Date.now() + 15000 }; // 15 seconds
+    //     },
+    //     submitOptions: () => {
+    //         return { deadline: Date.now() + 5000 }; // 5 seconds
+    //     },
+    //     commitStatusOptions: () => {
+    //         return { deadline: Date.now() + 60000 }; // 1 minute
+    //     },
+    // });
+
+    try {
+        // Get a network instance representing the channel where the smart contract is deployed.
+        const network = gateway.getNetwork(channelName);
+
+        // Get the smart contract from the network.
+        const contract = network.getContract(chaincodeName);
+        const results = await readAssetByID(contract, id);
+        res.json(results);
+
+    } catch (e) {
+        res.status(400).send(e);
+    } finally {
+        // gateway.close();
+        // client.close();
+    }
 })
 
 app.listen(port, () => {
