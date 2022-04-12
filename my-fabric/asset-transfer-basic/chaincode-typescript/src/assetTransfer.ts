@@ -2,12 +2,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 // Deterministic JSON.stringify()
-import {Context, Contract, Info, Returns, Transaction} from 'fabric-contract-api';
+import { Context, Contract, Info, Returns, Transaction } from 'fabric-contract-api';
 import stringify from 'json-stringify-deterministic';
 import sortKeysRecursive from 'sort-keys-recursive';
-import {Asset} from './asset';
+import { Asset } from './asset';
 
-@Info({title: 'AssetTransfer', description: 'Smart contract for trading assets'})
+@Info({ title: 'AssetTransfer', description: 'Smart contract for trading assets' })
 export class AssetTransferContract extends Contract {
 
     @Transaction()
@@ -15,9 +15,17 @@ export class AssetTransferContract extends Contract {
         const assets: Asset[] = [
             {
                 ID: 'asset1',
-                User: 'AAA',
-                InTime: '0',
-                OutTime: '0',
+                Name: 'Tom',
+                Date: '20220412',
+                EnterTime: '0900',
+                LeaveTime: '1800'
+            },
+            {
+                ID: 'asset2',
+                Name: 'Ken',
+                Date: '20220413',
+                EnterTime: '0900',
+                LeaveTime: '1900'
             },
         ];
 
@@ -34,7 +42,7 @@ export class AssetTransferContract extends Contract {
 
     // CreateAsset issues a new asset to the world state with given details.
     @Transaction()
-    public async CreateAsset(ctx: Context, id: string, user: string, inTime: string, outTime: string): Promise<void> {
+    public async CreateAsset(ctx: Context, id: string, userName: string, date: string, enterTime: string, leaveTime: string): Promise<void> {
         const exists = await this.AssetExists(ctx, id);
         if (exists) {
             throw new Error(`The asset ${id} already exists`);
@@ -42,9 +50,10 @@ export class AssetTransferContract extends Contract {
 
         const asset = {
             ID: id,
-	    User: user,
-	    InTime: inTime,
-	    OutTime: outTime,
+            Name: userName,
+            Date: date,
+            EnterTime: enterTime,
+            LeaveTime: leaveTime
         };
         // we insert data in alphabetic order using 'json-stringify-deterministic' and 'sort-keys-recursive'
         await ctx.stub.putState(id, Buffer.from(stringify(sortKeysRecursive(asset))));
@@ -62,7 +71,7 @@ export class AssetTransferContract extends Contract {
 
     // UpdateAsset updates an existing asset in the world state with provided parameters.
     @Transaction()
-    public async UpdateAsset(ctx: Context, id: string, user: string, inTime: string, outTime: string): Promise<void> {
+    public async UpdateAsset(ctx: Context, id: string, userName: string, date: string, enterTime: string, leaveTime: string): Promise<void> {
         const exists = await this.AssetExists(ctx, id);
         if (!exists) {
             throw new Error(`The asset ${id} does not exist`);
@@ -71,9 +80,10 @@ export class AssetTransferContract extends Contract {
         // overwriting original asset with new asset
         const updatedAsset = {
             ID: id,
-            User: user,
-	    InTime: inTime,
-	    OutTime: outTime,
+            Name: userName,
+            Date: date,
+            EnterTime: enterTime,
+            LeaveTime: leaveTime
         };
         // we insert data in alphabetic order using 'json-stringify-deterministic' and 'sort-keys-recursive'
         return ctx.stub.putState(id, Buffer.from(stringify(sortKeysRecursive(updatedAsset))));
@@ -99,14 +109,14 @@ export class AssetTransferContract extends Contract {
 
     // TransferAsset updates the owner field of asset with given id in the world state, and returns the old owner.
     @Transaction()
-    public async TransferAsset(ctx: Context, id: string, newUser: string): Promise<string> {
+    public async TransferAsset(ctx: Context, id: string, newName: string): Promise<string> {
         const assetString = await this.ReadAsset(ctx, id);
         const asset = JSON.parse(assetString);
-        const oldUser = asset.User;
-        asset.User = newUser;
+        const oldName = asset.User;
+        asset.Name = newName;
         // we insert data in alphabetic order using 'json-stringify-deterministic' and 'sort-keys-recursive'
         await ctx.stub.putState(id, Buffer.from(stringify(sortKeysRecursive(asset))));
-        return oldUser;
+        return oldName;
     }
 
     // GetAllAssets returns all assets found in the world state.

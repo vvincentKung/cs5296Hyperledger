@@ -13,25 +13,14 @@ export class Asset {
     public ID: string;
 
     @Property()
-    public User: string;
+    public Name: string;
 
     @Property()
-    public InTime: string;
+    public Date: string;
 
     @Property()
-    public OutTime: string;
+    public EnterTime: string;
 
-    
-
-    //@Property()
-    //public Color: string;
-
-    //@Property()
-    //public Size: number;
-
-    //@Property()
-    //public Owner: string;
-
-    //@Property()
-    //public AppraisedValue: number;
+    @Property()
+    public LeaveTime: string;
 }
