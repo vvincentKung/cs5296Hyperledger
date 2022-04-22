@@ -3,28 +3,28 @@
 ##Testing Environment
 Ubuntu 20.04
 
-##Prerequisite software
+## Prerequisite software
 
-####Install Git
+#### Install Git
     sudo apt install git
 
-####Install curl
+#### Install curl
     sudo apt-get install curl
 
-####Install nodejs and npm
+#### Install nodejs and npm
     sudo apt install nodejs npm
 
-####Install docker-compose
+#### Install docker-compose
     sudo apt-get -y install docker-compose
 
-####Start the docker
+#### Start the docker
 "username" is mean your user accout (e.g. ubuntu)
 
     sudo systemctl start docker
 	sudo systemctl enable docker
 	sudo usermod -a -G docker <username>
 
-####fabric-peer, fabric-orderer, fabric-tools
+#### fabric-peer, fabric-orderer, fabric-tools
 Please install the last version of fabric-peer, fabric-orderer, fabric-tools
 
     sudo docker pull hyperledger/fabric-peer:2.4
@@ -34,10 +34,10 @@ Please install the last version of fabric-peer, fabric-orderer, fabric-tools
     sudo docker pull hyperledger/fabric-tools:2.4
     sudo docker tag hyperledger/fabric-tools:2.4 hyperledger/fabric-tools:latest
 
-####Pull the Repository
+#### Pull the Repository
     git clone https://github.com/vvincentKung/cs5296Hyperledger.git
 
-##Start up the network
+## Start up the network
 
 1. Initialize the network
         cd cs5296project/my-fabric/my-network/
