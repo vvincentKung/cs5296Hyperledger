@@ -40,8 +40,10 @@ Please install the last version of fabric-peer, fabric-orderer, fabric-tools
 ## Start up the network
 
 1. Initialize the network
-    cd cs5296project/my-fabric/my-network/
-    sudo ./network.sh up createChannel -c mychannel -ca
+```
+cd cs5296project/my-fabric/my-network/
+sudo ./network.sh up createChannel -c mychannel -ca
+```
 
 2. Initialize the chaincode
     cd ../asset-transfer-basic/chaincode-typescript
